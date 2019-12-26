@@ -7,6 +7,7 @@
 # Reference URL:
 # https://www.wireguard.com
 # https://git.zx2c4.com/WireGuard
+# https://teddysun.com/554.html
 
 trap _exit INT QUIT TERM
 
@@ -67,7 +68,7 @@ _exists() {
 
 _ipv4() {
     local ipv4="$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | \
-                   egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 )"
+                   egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\.|^169\.254\." | head -n 1 )"
     [ -z "${ipv4}" ] && ipv4="$( wget -qO- -t1 -T2 ipv4.icanhazip.com )"
     [ -z "${ipv4}" ] && ipv4="$( wget -qO- -t1 -T2 ipinfo.io/ip )"
     printf -- "%s" "${ipv4}"
@@ -164,13 +165,13 @@ check_os() {
     if [ -n "${virt}" -a "${virt}" = "openvz" ] || [ -d "/proc/vz" ]; then
         _error "Virtualization method is OpenVZ, which is not supported."
     fi
-    [ -z "$(_os)" ] && _error "Not supported OS."
+    [ -z "$(_os)" ] && _error "Not supported OS"
     case "$(_os)" in
         ubuntu)
             [ -n "$(_os_ver)" -a "$(_os_ver)" -lt 16 ] && _error "Not supported OS, please change to Ubuntu 16+ and try again."
             ;;
-        debian)
-            [ -n "$(_os_ver)" -a "$(_os_ver)" -lt 8 ] &&  _error "Not supported OS, please change to Debian 8+ and try again."
+        debian|raspbian)
+            [ -n "$(_os_ver)" -a "$(_os_ver)" -lt 8 ] &&  _error "Not supported OS, please change to De(Rasp)bian 8+ and try again."
             ;;
         fedora)
             [ -n "$(_os_ver)" -a "$(_os_ver)" -lt 29 ] && _error "Not supported OS, please change to Fedora 29+ and try again."
@@ -179,7 +180,8 @@ check_os() {
             [ -n "$(_os_ver)" -a "$(_os_ver)" -lt 7 ] &&  _error "Not supported OS, please change to CentOS 7+ and try again."
             ;;
         *)
-            ;; # do nothing
+            _error "Not supported OS"
+            ;;
     esac
 }
 
@@ -212,7 +214,12 @@ install_wg_1() {
             _error_detect "dnf -y install wireguard-dkms wireguard-tools"
             ;;
         centos)
-            _error_detect "curl -Lso /etc/yum.repos.d/wireguard.repo https://copr.fedorainfracloud.org/coprs/jdoss/wireguard/repo/epel-7/jdoss-wireguard-epel-7.repo"
+            if [ -n "$(_os_ver)" -a "$(_os_ver)" -eq 7 ]; then
+                _error_detect "curl -Lso /etc/yum.repos.d/wireguard.repo https://copr.fedorainfracloud.org/coprs/jdoss/wireguard/repo/epel-7/jdoss-wireguard-epel-7.repo"
+            fi
+            if [ -n "$(_os_ver)" -a "$(_os_ver)" -eq 8 ]; then
+                _error_detect "curl -Lso /etc/yum.repos.d/wireguard.repo https://copr.fedorainfracloud.org/coprs/jdoss/wireguard/repo/epel-8/jdoss-wireguard-epel-8.repo"
+            fi
             _error_detect "yum -y install epel-release"
             _error_detect "yum -y install kernel-devel"
             _error_detect "yum -y install kernel-headers"
@@ -231,15 +238,22 @@ install_wg_1() {
 install_wg_2() {
     _info "Install wireguard from source"
     case "$(_os)" in
-        ubuntu|debian)
+        ubuntu|debian|raspbian)
             _error_detect "apt-get update"
-            [ ! -d "/usr/src/linux-headers-$(uname -r)" ] && _error_detect "apt-get -y install linux-headers-$(uname -r)"
+            if [ ! -d "/usr/src/linux-headers-$(uname -r)" ]; then
+                if [ "$(_os)" = "raspbian" ]; then
+                    _error_detect "apt-get -y install raspberrypi-kernel-headers"
+                else
+                    _error_detect "apt-get -y install linux-headers-$(uname -r)"
+                fi
+            fi
             _error_detect "apt-get -y install qrencode"
             _error_detect "apt-get -y install iptables"
             _error_detect "apt-get -y install bc"
             _error_detect "apt-get -y install gcc"
             _error_detect "apt-get -y install make"
             _error_detect "apt-get -y install libmnl-dev"
+            _error_detect "apt-get -y install libelf-dev"
             ;;
         fedora)
             [ ! -d "/usr/src/kernels/$(uname -r)" ] && _error_detect "dnf -y install kernel-headers" && _error_detect "dnf -y install kernel-devel"
@@ -248,6 +262,7 @@ install_wg_2() {
             _error_detect "dnf -y install gcc"
             _error_detect "dnf -y install make"
             _error_detect "dnf -y install libmnl-devel"
+            _error_detect "dnf -y install elfutils-libelf-devel"
             ;;
         centos)
             _error_detect "yum -y install epel-release"
@@ -256,7 +271,10 @@ install_wg_2() {
             _error_detect "yum -y install bc"
             _error_detect "yum -y install gcc"
             _error_detect "yum -y install make"
+            _error_detect "yum -y install yum-utils"
+            [ -n "$(_os_ver)" -a "$(_os_ver)" -eq 8 ] && _error_detect "yum-config-manager --enable PowerTools"
             _error_detect "yum -y install libmnl-devel"
+            _error_detect "yum -y install elfutils-libelf-devel"
             ;;
         *)
             ;; # do nothing
@@ -274,6 +292,37 @@ install_wg_2() {
     if ! _is_installed; then
         _error "Failed to install wireguard, the kernel is most likely not configured correctly"
     fi
+}
+
+# Uninstall WireGuard
+uninstall_wg() {
+    if ! _is_installed; then
+        _error "WireGuard is not installed"
+    fi
+    _info "Uninstall WireGuard start"
+    # stop wireguard at first
+    _error_detect "systemctl stop wg-quick@${SERVER_WG_NIC}"
+    _error_detect "systemctl disable wg-quick@${SERVER_WG_NIC}"
+    # if wireguard has been installed from repository
+    if _exists "yum" && _exists "rpm"; then
+        if rpm -qa | grep -q wireguard; then
+            _error_detect "yum -y remove wireguard-dkms wireguard-tools"
+        fi
+    elif _exists "apt" && _exists "apt-get"; then
+        if apt list --installed | grep -q wireguard; then
+            _error_detect "apt-get -y remove wireguard"
+        fi
+    fi
+    # if wireguard has been installed from source
+    if _is_installed; then
+        _error_detect "rm -f /usr/bin/wg"
+        _error_detect "rm -f /usr/bin/wg-quick"
+        _error_detect "rm -f /usr/share/man/man8/wg.8"
+        _error_detect "rm -f /usr/share/man/man8/wg-quick.8"
+        _exists "modprobe" && _error_detect "modprobe -r wireguard"
+    fi
+    [ -d "/etc/wireguard" ] && _error_detect "rm -fr /etc/wireguard"
+    _info "Uninstall WireGuard completed"
 }
 
 # Create server interface
@@ -319,28 +368,28 @@ create_client_if() {
     if [ -n "${SERVER_PUB_IPV6}" ]; then
         cat > /etc/wireguard/${SERVER_WG_NIC}_client <<EOF
 [Interface]
-Address = ${CLIENT_WG_IPV4}/24,${CLIENT_WG_IPV6}/64
 PrivateKey = ${CLIENT_PRIVATE_KEY}
+Address = ${CLIENT_WG_IPV4}/24,${CLIENT_WG_IPV6}/64
 DNS = ${CLIENT_DNS_1},${CLIENT_DNS_2}
 
 [Peer]
 PublicKey = ${SERVER_PUBLIC_KEY}
-Endpoint = ${SERVER_PUB_IPV4}:${SERVER_WG_PORT}
-AllowedIPs = 0.0.0.0/0,::/0
 PresharedKey = ${CLIENT_PRE_SHARED_KEY}
+AllowedIPs = 0.0.0.0/0,::/0
+Endpoint = ${SERVER_PUB_IPV4}:${SERVER_WG_PORT}
 EOF
     else
         cat > /etc/wireguard/${SERVER_WG_NIC}_client <<EOF
 [Interface]
-Address = ${CLIENT_WG_IPV4}/24
 PrivateKey = ${CLIENT_PRIVATE_KEY}
+Address = ${CLIENT_WG_IPV4}/24
 DNS = ${CLIENT_DNS_1},${CLIENT_DNS_2}
 
 [Peer]
 PublicKey = ${SERVER_PUBLIC_KEY}
-Endpoint = ${SERVER_PUB_IPV4}:${SERVER_WG_PORT}
-AllowedIPs = 0.0.0.0/0
 PresharedKey = ${CLIENT_PRE_SHARED_KEY}
+AllowedIPs = 0.0.0.0/0
+Endpoint = ${SERVER_PUB_IPV4}:${SERVER_WG_PORT}
 EOF
     fi
     chmod 600 /etc/wireguard/${SERVER_WG_NIC}_client
@@ -369,7 +418,7 @@ set_firewall() {
         if [ "$(firewall-cmd --state | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")" = "running" ]; then
             default_zone="$(firewall-cmd --get-default-zone)"
             if [ "$(firewall-cmd --zone=${default_zone} --query-masquerade)" = "no" ]; then
-                _error_detect "firewall-cmd --zone=${default_zone} --add-masquerade"
+                _error_detect "firewall-cmd --permanent --zone=${default_zone} --add-masquerade"
             fi
             if ! firewall-cmd --list-ports | grep -qw "${SERVER_WG_PORT}/udp"; then
                 _error_detect "firewall-cmd --permanent --zone=${default_zone} --add-port=${SERVER_WG_PORT}/udp"
@@ -419,12 +468,14 @@ install_completed() {
     _info "$(_green "/etc/wireguard/${SERVER_WG_NIC}_client")"
     _info "WireGuard VPN default client QR Code is below:"
     _info "$(_green "/etc/wireguard/${SERVER_WG_NIC}_client.png")"
-    _info "Download and scan this QR Code with your phone, enjoy it"
+    _info "Download and scan this QR Code with your phone"
+    _info "Welcome to visit: https://teddysun.com/554.html"
+    _info "Enjoy it"
 }
 
 add_client() {
     if ! _is_installed; then
-        _red "WireGuard looks like not installed, please installed it try again\n" && exit 1
+        _red "WireGuard was not installed, please install it and try again\n" && exit 1
     fi
     default_server_if="/etc/wireguard/${SERVER_WG_NIC}.conf"
     default_client_if="/etc/wireguard/${SERVER_WG_NIC}_client"
@@ -475,15 +526,15 @@ add_client() {
     if [ -n "${SERVER_PUB_IPV6}" ]; then
         cat > ${new_client_if} <<EOF
 [Interface]
-Address = ${CLIENT_WG_IPV4}/24,${CLIENT_WG_IPV6}/64
 PrivateKey = ${CLIENT_PRIVATE_KEY}
+Address = ${CLIENT_WG_IPV4}/24,${CLIENT_WG_IPV6}/64
 DNS = ${CLIENT_DNS_1},${CLIENT_DNS_2}
 
 [Peer]
 PublicKey = ${SERVER_PUBLIC_KEY}
-Endpoint = ${CLIENT_ENDPOINT}
-AllowedIPs = 0.0.0.0/0,::/0
 PresharedKey = ${CLIENT_PRE_SHARED_KEY}
+AllowedIPs = 0.0.0.0/0,::/0
+Endpoint = ${CLIENT_ENDPOINT}
 EOF
         # Add a new client to default server interface
         cat >> ${default_server_if} <<EOF
@@ -496,15 +547,15 @@ EOF
     else
         cat > ${new_client_if} <<EOF
 [Interface]
-Address = ${CLIENT_WG_IPV4}/24
 PrivateKey = ${CLIENT_PRIVATE_KEY}
+Address = ${CLIENT_WG_IPV4}/24
 DNS = ${CLIENT_DNS_1},${CLIENT_DNS_2}
 
 [Peer]
 PublicKey = ${SERVER_PUBLIC_KEY}
-Endpoint = ${CLIENT_ENDPOINT}
-AllowedIPs = 0.0.0.0/0
 PresharedKey = ${CLIENT_PRE_SHARED_KEY}
+AllowedIPs = 0.0.0.0/0
+Endpoint = ${CLIENT_ENDPOINT}
 EOF
         cat >> ${default_server_if} <<EOF
 
@@ -531,7 +582,7 @@ EOF
 
 remove_client() {
     if ! _is_installed; then
-        _red "WireGuard looks like not installed, please installed it try again\n" && exit 1
+        _red "WireGuard was not installed, please install it and try again\n" && exit 1
     fi
     default_server_if="/etc/wireguard/${SERVER_WG_NIC}.conf"
     [ ! -s "${default_server_if}" ] && echo "The default server interface ($(_red ${default_server_if})) does not exists" && exit 1
@@ -561,7 +612,7 @@ remove_client() {
 
 list_clients() {
     if ! _is_installed; then
-        _red "WireGuard looks like not installed, please installed it try again\n" && exit 1
+        _red "WireGuard was not installed, please install it and try again\n" && exit 1
     fi
     default_server_if="/etc/wireguard/${SERVER_WG_NIC}.conf"
     [ ! -s "${default_server_if}" ] && echo "The default server interface ($(_red ${default_server_if})) does not exists" && exit 1
@@ -592,27 +643,29 @@ check_version() {
     elif [ ${rt} -eq 1 ]; then
         _red "WireGuard kernel module does not exists\n" && return 1
     elif [ ${rt} -eq 2 ]; then
-        _red "WireGuard is not installed\n" && return 2
+        _red "WireGuard was not installed\n" && return 2
     fi
 }
 
 show_help() {
     printf "
-Usage: $0 [Options]
+Usage  : $0 [Options]
 Options:
--h, --help       Print this help text and exit
--r, --repo       Install WireGuard from repository
--s, --source     Install WireGuard from source
--u, --update     Upgrade WireGuard from source
--v, --version    Print WireGuard version if installed
--a, --add        Add a WireGuard client
--d, --del        Delete a WireGuard client
--l, --list       List all WireGuard client's IP
+        -h, --help       Print this help text and exit
+        -r, --repo       Install WireGuard from repository
+        -s, --source     Install WireGuard from source
+        -u, --update     Upgrade WireGuard from source
+        -v, --version    Print WireGuard version if installed
+        -a, --add        Add a WireGuard client
+        -d, --del        Delete a WireGuard client
+        -l, --list       List all WireGuard client's IP
+        -n, --uninstall  Uninstall WireGuard
 
 "
 }
 
 install_from_repo() {
+    _is_installed && check_version && _red "WireGuard was already installed\n" && exit 0
     check_os
     install_wg_1
     create_server_if
@@ -624,6 +677,7 @@ install_from_repo() {
 }
 
 install_from_source() {
+    _is_installed && check_version && _red "WireGuard was already installed\n" && exit 0
     check_os
     install_wg_2
     create_server_if
@@ -635,29 +689,27 @@ install_from_source() {
 }
 
 update_from_source() {
-    if check_version; then
+    if check_version > /dev/null 2>&1; then
         _get_latest_ver
-        echo "WireGuard latest version: $(_green ${wireguard_ver})"
+        _info "WireGuard version: $(_green ${installed_wg_ver})"
+        _info "WireGuard latest version: $(_green ${wireguard_ver})"
         if _version_gt "${wireguard_ver}" "${installed_wg_ver}"; then
-            echo "Do you want to upgrade WireGuard? (y/n)"
-            read -p "(Default: n):" update_wg
-            [ -z "${update_wg}" ] && update_wg="n"
-            if [ "${update_wg}" = "y" -o "${update_wg}" = "Y" ]; then
-                install_wg_2
-                systemctl restart wg-quick@${SERVER_WG_NIC}
-                echo "Update WireGuard completed"
-            else
-                echo "Update WireGuard canceled"
-            fi
+            _info "Starting upgrade WireGuard"
+            install_wg_2
+            _error_detect "systemctl daemon-reload"
+            _error_detect "systemctl restart wg-quick@${SERVER_WG_NIC}"
+            _info "Update WireGuard completed"
         else
-            echo "No updates needed to update WireGuard"
+            _info "There is no update available for WireGuard"
         fi
+    else
+        _red "WireGuard was not installed, maybe you need to install it at first\n"
     fi
 }
 
 cur_dir="$(pwd)"
 
-[ ${EUID} -ne 0 ] && _error "This script must be run as root"
+[ ${EUID} -ne 0 ] && _red "This script must be run as root\n" && exit 1
 
 SERVER_PUB_IPV4="${VPN_SERVER_PUB_IPV4:-$(_ipv4)}"
 SERVER_PUB_IPV6="${VPN_SERVER_PUB_IPV6:-$(_ipv6)}"
@@ -698,6 +750,9 @@ main() {
             ;;
         -l|--list)
             list_clients
+            ;;
+        -n|--uninstall)
+            uninstall_wg
             ;;
         *)
             show_help
