@@ -5,7 +5,7 @@
 # https://github.com/v2ray/geoip
 # https://github.com/v2ray/domain-list-community
 
-FROM golang:alpine AS builder
+FROM --platform=$TARGETPLATFORM golang:alpine AS builder
 RUN set -ex \
 	&& apk add --no-cache git unzip \
 	&& mkdir -p /go/src/github.com/v2ray \
@@ -20,7 +20,7 @@ RUN set -ex \
 	&& wget -O /go/bin/geosite.dat https://github.com/v2ray/domain-list-community/releases/latest/download/dlc.dat \
 	&& wget -O /go/bin/geoip.dat https://github.com/v2ray/geoip/releases/latest/download/geoip.dat
 
-FROM alpine:latest
+FROM --platform=$TARGETPLATFORM alpine:latest
 LABEL maintainer="Teddysun <i@teddysun.com>"
 
 RUN set -ex \
