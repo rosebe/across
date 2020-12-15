@@ -32,9 +32,7 @@ VOLUME /etc/caddy
 VOLUME /config
 VOLUME /data
 
-EXPOSE 80
-EXPOSE 443
-EXPOSE 2015
+EXPOSE 80 443 2015
 
 ENV TZ=Asia/Shanghai
-CMD [ "/usr/bin/caddy", "-conf", "/etc/caddy/Caddyfile" ]
+CMD [ "/usr/bin/caddy", "-conf", "/etc/caddy/Caddyfile", "-agree" ]
