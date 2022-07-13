@@ -1,23 +1,21 @@
 # Dockerfile for build RPM packages.
-# Copyright (C) 2021 Teddysun <i@teddysun.com>
+# Copyright (C) 2021 - 2022 Teddysun <i@teddysun.com>
 
-FROM --platform=${TARGETPLATFORM} rockylinux/rockylinux:8
+FROM --platform=${TARGETPLATFORM} centos:7
 LABEL maintainer="Teddysun <i@teddysun.com>"
 
-RUN yum install -y yum-utils epel-release && \
+RUN yum install -y yum-utils epel-release centos-release-scl-rh && \
 	yum-config-manager --enable epel && \
-	yum-config-manager --enable powertools && \
-	rpm -e --nodeps coreutils-single && \
 	yum install -y tar wget git tree gcc gcc-c++ \
-		sudo net-tools make cmake zstd libzstd \
-		bash coreutils diffutils patch ca-certificates \
+		sudo net-tools make cmake zstd libzstd chkconfig \
+		python bash coreutils diffutils patch ca-certificates \
 		rpm-build rpm-devel rpmlint rpmdevtools \
-		asciidoc audit-libs-devel binutils-devel flex \
-		libcap-devel newt-devel pciutils-devel perl-generators \
-		python3 python3-devel python3-docutils rsync xmlto bc bison \
-		java-devel ncurses-devel numactl-devel openssl-devel perl-devel \
-		elfutils-devel xz-devel perl-ExtUtils-Embed && \
-	yum clean all && rm -rf /var/cache/dnf /var/lib/rpm/__db*
+		devtoolset-9-gcc devtoolset-9-binutils devtoolset-9-runtime \
+		scl-utils asciidoc bison elfutils-libelf-devel m4 newt-devel \
+		openssl-devel openssl xmlto audit-libs-devel binutils-devel elfutils-devel \
+		gettext java-1.8.0-openjdk-devel libcap-devel numactl-devel python-devel python3 \
+		slang-devel xz-devel zlib-devel ncurses-devel pciutils-devel perl-ExtUtils-Embed epel-rpm-macros && \
+	yum clean all && rm -rf /var/cache/yum /var/lib/rpm/__db*
 
 RUN useradd builder -u 1000 -m -G users,wheel && \
 	echo "builder ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers && \

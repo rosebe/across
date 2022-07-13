@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Description: Auto test download & I/O speed script
+# Description: A Bench Script by Teddysun
 #
 # Copyright (C) 2015 - 2022 Teddysun <i@teddysun.com>
 # Thanks: LookBack <admin@dwhd.org>
@@ -81,8 +81,8 @@ speed() {
     speed_test '27594' 'Guangzhou, CN'
     speed_test '32155' 'Hongkong, CN'
     speed_test '6527'  'Seoul, KR'
-    speed_test '25960' 'Singapore, SG'
-    speed_test '15047' 'Tokyo, JP'
+    speed_test '7311'  'Singapore, SG'
+    speed_test '21569' 'Tokyo, JP'
 }
 
 io_test() {
@@ -136,11 +136,15 @@ check_virt(){
         virt="OpenVZ"
     elif [[ "${virtualx}" == *kvm-clock* ]]; then
         virt="KVM"
+    elif [[ "${sys_product}" == *KVM* ]]; then
+        virt="KVM"
     elif [[ "${cname}" == *KVM* ]]; then
         virt="KVM"
     elif [[ "${cname}" == *QEMU* ]]; then
         virt="KVM"
     elif [[ "${virtualx}" == *"VMware Virtual Platform"* ]]; then
+        virt="VMware"
+    elif [[ "${sys_product}" == *"VMware Virtual Platform"* ]]; then
         virt="VMware"
     elif [[ "${virtualx}" == *"Parallels Software International"* ]]; then
         virt="Parallels"
@@ -219,11 +223,12 @@ install_speedtest() {
         mkdir -p speedtest-cli && tar zxf speedtest.tgz -C ./speedtest-cli && chmod +x ./speedtest-cli/speedtest
         rm -f speedtest.tgz
     fi
+    printf "%-18s%-18s%-20s%-12s\n" " Node Name" "Upload Speed" "Download Speed" "Latency"
 }
 
 print_intro() {
     echo "-------------------- A Bench.sh Script By Teddysun -------------------"
-    echo " Version            : $(_green v2022-02-22)"
+    echo " Version            : $(_green v2022-06-01)"
     echo " Usage              : $(_red "wget -qO- bench.sh | bash")"
 }
 
@@ -356,8 +361,7 @@ ipv4_info
 next
 print_io_test
 next
-install_speedtest && printf "%-18s%-18s%-20s%-12s\n" " Node Name" "Upload Speed" "Download Speed" "Latency"
-speed && rm -fr speedtest-cli
+install_speedtest && speed && rm -fr speedtest-cli
 next
 print_end_time
 next
