@@ -2,7 +2,7 @@
 #
 # Description: A Bench Script by Teddysun
 #
-# Copyright (C) 2015 - 2023 Teddysun <i@teddysun.com>
+# Copyright (C) 2015 - 2024 Teddysun <i@teddysun.com>
 # Thanks: LookBack <admin@dwhd.org>
 # URL: https://teddysun.com/444.html
 # https://github.com/teddysun/across/blob/master/bench.sh
@@ -57,7 +57,7 @@ next() {
 
 speed_test() {
     local nodeName="$2"
-    if [ -z "$1" ];then 
+    if [ -z "$1" ];then
         ./speedtest-cli/speedtest --progress=no --accept-license --accept-gdpr >./speedtest-cli/speedtest.log 2>&1
     else
         ./speedtest-cli/speedtest --progress=no --server-id="$1" --accept-license --accept-gdpr >./speedtest-cli/speedtest.log 2>&1
@@ -78,19 +78,18 @@ speed() {
     speed_test '21541' 'Los Angeles, US'
     speed_test '43860' 'Dallas, US'
     speed_test '40879' 'Montreal, CA'
-    speed_test '24215' 'Paris, FR'
+    speed_test '61933' 'Paris, FR'
     speed_test '28922' 'Amsterdam, NL'
+    speed_test '25858' 'Beijing, CN'
     speed_test '24447' 'Shanghai, CN'
-    speed_test '5530' 'Chongqing, CN'
     speed_test '60572' 'Guangzhou, CN'
-    speed_test '32155' 'Hongkong, CN'
-    speed_test '23647' 'Mumbai, IN'
+    speed_test '32155' 'Hong Kong, CN'
     speed_test '13623' 'Singapore, SG'
-    speed_test '21569' 'Tokyo, JP'
+    speed_test '48463' 'Tokyo, JP'
 }
 
 io_test() {
-    (LANG=C dd if=/dev/zero of=benchtest_$$ bs=512k count="$1" conv=fdatasync && rm -f benchtest_$$) 2>&1 | awk -F, '{io=$NF} END { print io}' | sed 's/^[ \t]*//;s/[ \t]*$//'
+    (LANG=C dd if=/dev/zero of=benchtest_$$ bs=512k count="$1" conv=fdatasync && rm -f benchtest_$$) 2>&1 | awk -F '[,，]' '{io=$NF} END { print io}' | sed 's/^[ \t]*//;s/[ \t]*$//'
 }
 
 calc_size() {
@@ -158,6 +157,8 @@ check_virt() {
     elif [[ "${virtualx}" == *kvm-clock* ]]; then
         virt="KVM"
     elif [[ "${sys_product}" == *KVM* ]]; then
+        virt="KVM"
+    elif [[ "${sys_manu}" == *QEMU* ]]; then
         virt="KVM"
     elif [[ "${cname}" == *KVM* ]]; then
         virt="KVM"
@@ -251,7 +252,7 @@ install_speedtest() {
 
 print_intro() {
     echo "-------------------- A Bench.sh Script By Teddysun -------------------"
-    echo " Version            : $(_green v2023-10-15)"
+    echo " Version            : $(_green v2024-11-11)"
     echo " Usage              : $(_red "wget -qO- bench.sh | bash")"
 }
 
@@ -373,11 +374,11 @@ print_io_test() {
         io3=$(io_test ${writemb})
         echo " I/O Speed(3rd run) : $(_yellow "$io3")"
         ioraw1=$(echo "$io1" | awk 'NR==1 {print $1}')
-        [ "$(echo "$io1" | awk 'NR==1 {print $2}')" == "GB/s" ] && ioraw1=$(awk 'BEGIN{print '"$ioraw1"' * 1024}')
+        [[ "$(echo "$io1" | awk 'NR==1 {print $2}')" == "GB/s" ]] && ioraw1=$(awk 'BEGIN{print '"$ioraw1"' * 1024}')
         ioraw2=$(echo "$io2" | awk 'NR==1 {print $1}')
-        [ "$(echo "$io2" | awk 'NR==1 {print $2}')" == "GB/s" ] && ioraw2=$(awk 'BEGIN{print '"$ioraw2"' * 1024}')
+        [[ "$(echo "$io2" | awk 'NR==1 {print $2}')" == "GB/s" ]] && ioraw2=$(awk 'BEGIN{print '"$ioraw2"' * 1024}')
         ioraw3=$(echo "$io3" | awk 'NR==1 {print $1}')
-        [ "$(echo "$io3" | awk 'NR==1 {print $2}')" == "GB/s" ] && ioraw3=$(awk 'BEGIN{print '"$ioraw3"' * 1024}')
+        [[ "$(echo "$io3" | awk 'NR==1 {print $2}')" == "GB/s" ]] && ioraw3=$(awk 'BEGIN{print '"$ioraw3"' * 1024}')
         ioall=$(awk 'BEGIN{print '"$ioraw1"' + '"$ioraw2"' + '"$ioraw3"'}')
         ioavg=$(awk 'BEGIN{printf "%.1f", '"$ioall"' / 3}')
         echo " I/O Speed(average) : $(_yellow "$ioavg MB/s")"

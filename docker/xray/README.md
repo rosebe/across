@@ -40,9 +40,7 @@ A sample in JSON like below:
     "settings": {
       "clients": [
         {
-          "id": "1eb6e917-774b-4a84-aff6-b058577c60a5",
-          "level": 1,
-          "alterId": 64
+          "id": "1eb6e917-774b-4a84-aff6-b058577c60a5"
         }
       ]
     }
@@ -54,7 +52,7 @@ A sample in JSON like below:
 }
 ```
 
-Or generate a configuration file online by [https://tools.sprov.xyz/v2ray/](https://tools.sprov.xyz/v2ray/)
+Or some examples of uses for Xray-core [https://github.com/XTLS/Xray-examples](https://github.com/XTLS/Xray-examples)
 
 There is an example to start a container that listen on port `9000`, run as a Xray server like below:
 
